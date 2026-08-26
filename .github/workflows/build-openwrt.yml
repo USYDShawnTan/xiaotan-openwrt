@@ -6,13 +6,13 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
     paths:
-      - 'config/**'
-      - 'files/**'
-      - 'scripts/**'
-      - 'versions.env'
-      - '.github/workflows/build-openwrt.yml'
+      - "config/**"
+      - "files/**"
+      - "scripts/**"
+      - "versions.env"
+      - ".github/workflows/build-openwrt.yml"
 
 permissions:
   contents: write
@@ -63,7 +63,7 @@ jobs:
             openwrt-dl-
 
       - name: Prepare OpenWrt
-        run: ./scripts/prepare.sh "$GITHUB_WORKSPACE/work"
+        run: bash ./scripts/prepare.sh "$GITHUB_WORKSPACE/work"
 
       - name: Download source archives
         working-directory: work/openwrt
