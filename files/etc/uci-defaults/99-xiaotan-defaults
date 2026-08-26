@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# Xiaotan OpenWrt first-boot defaults.
+# This file is executed once by OpenWrt's uci-defaults mechanism.
+
+# LAN: service/side-router node on 192.168.12.0/24.
+uci set network.lan.ipaddr='192.168.12.128'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.gateway='192.168.12.1'
+uci -q delete network.lan.dns
+uci add_list network.lan.dns='192.168.12.1'
+
+# Avoid competing with the primary router on the LAN.
+uci set dhcp.lan.ignore='1'
+uci set dhcp.lan.dhcpv6='disabled'
+uci set dhcp.lan.ra='disabled'
+uci set dhcp.lan.ndp='disabled'
+
+# LuCI defaults.
+uci set luci.main.lang='zh_cn'
+uci set luci.main.mediaurlbase='/luci-static/argon'
+
+uci commit network
+uci commit dhcp
+uci commit luci
+
+exit 0
