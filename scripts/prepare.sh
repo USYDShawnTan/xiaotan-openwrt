@@ -10,6 +10,13 @@ OPENWRT_DIR="$WORKDIR/openwrt"
 
 mkdir -p "$WORKDIR"
 
+# A cache step or an interrupted local run may leave a non-git directory here.
+# Remove it before cloning so "git clone" never fails with "directory not empty".
+if [[ -e "$OPENWRT_DIR" && ! -d "$OPENWRT_DIR/.git" ]]; then
+  echo "Removing stale non-git OpenWrt directory: $OPENWRT_DIR"
+  rm -rf "$OPENWRT_DIR"
+fi
+
 if [[ ! -d "$OPENWRT_DIR/.git" ]]; then
   git clone --filter=blob:none https://github.com/openwrt/openwrt.git "$OPENWRT_DIR"
 fi
@@ -37,3 +44,4 @@ make defconfig
 echo "Prepared OpenWrt source: $OPENWRT_DIR"
 echo "OpenWrt ref: $OPENWRT_REF"
 echo "Argon ref:   $ARGON_REF"
+echo "ccache:      $(grep -q '^CONFIG_CCACHE=y$' .config && echo enabled || echo disabled)"

@@ -1,86 +1,60 @@
-# Xiaotan OpenWrt
+# xiaotan OpenWrt
 
-可复现构建的 OpenWrt x86_64 固件配置，当前固定：
+Personal reproducible OpenWrt x86/64 firmware build.
 
-- OpenWrt `v25.12.5`
-- x86/64 Generic
-- UEFI / GRUB EFI
-- SquashFS
-- GZip image
-- RootFS 2048 MiB
-- LuCI + HTTPS + 简体中文
-- Argon theme `v2.4.6`
-- 默认 LAN：`192.168.12.128/24`
-- 默认网关 / DNS：`192.168.12.1`
-- LAN DHCP / DHCPv6 / RA：关闭
+## Current build
 
-## Repository layout
-
-```text
-.
-├── .github/workflows/build-openwrt.yml
-├── config/xiaotan.config
-├── files/etc/uci-defaults/99-xiaotan-defaults
-├── scripts/prepare.sh
-├── scripts/build.sh
-├── versions.env
-└── README.md
-```
-
-`config/xiaotan.config` 是 OpenWrt Buildroot 配置；LAN IP、旁路由 DHCP 行为和默认 LuCI 主题属于运行时 UCI 配置，所以放在 `files/etc/uci-defaults/99-xiaotan-defaults`。
+- OpenWrt: `v25.12.5`
+- Target: `x86/64`
+- Image: `squashfs-combined-efi.img.gz`
+- LuCI: HTTPS + Simplified Chinese
+- Theme: Argon
+- Default LAN IP: `192.168.12.128/24`
+- Gateway / DNS: `192.168.12.1`
+- LAN DHCP / DHCPv6 / RA: disabled
+- Compiler cache: OpenWrt `ccache` enabled
 
 ## GitHub Actions
 
-推送到 `main` 后会自动构建，并在 Workflow 页面产生 30 天保留的 Artifact。
+A push to `main` builds the complete firmware. The workflow caches:
 
-手工运行：
+- `work/openwrt/dl` — downloaded source archives
+- `work/openwrt/.ccache` — compiler cache
 
-```text
-GitHub → Actions → Build OpenWrt → Run workflow
-```
+The first build is still a full clean build. Later builds remain complete firmware builds, but source downloads and many compiler results can be reused from cache.
 
-打 tag 会额外创建 GitHub Release，并永久挂载固件：
-
-```bash
-git tag v25.12.5-xiaotan.1
-git push origin v25.12.5-xiaotan.1
-```
-
-主要产物：
+The downloadable Actions artifact is a ZIP containing **only**:
 
 ```text
 openwrt-x86-64-generic-squashfs-combined-efi.img.gz
-sha256sums
-xiaotan-firmware.sha256
-xiaotan.config
-versions.env
 ```
 
-## Local build (WSL2 / Linux)
+Artifacts are retained for 7 days. Tagged builds additionally publish the same `.img.gz` as the sole GitHub Release asset.
 
-不要用 root 用户编译 OpenWrt。
+## Build locally
 
 ```bash
 ./scripts/build.sh
 ```
 
-默认工作目录是仓库下的 `work/`；也可以指定：
+Or specify another work directory:
 
 ```bash
-./scripts/build.sh ~/openwrt-build-ci
+./scripts/build.sh /path/to/work
 ```
 
-## Upgrade OpenWrt / Argon
+## Version update
 
-修改 `versions.env`：
+Edit `versions.env`:
 
 ```bash
 OPENWRT_REF=v25.12.5
 ARGON_REF=v2.4.6
 ```
 
-例如 OpenWrt 发布 `v25.12.6` 后，只需要先改 `OPENWRT_REF`，提交并让 Actions 编译测试。
+## Release
 
-## Important
-
-`192.168.12.128` 必须确保局域网内没有其他设备占用。这个固件按“旁路由 / 服务节点”设计，默认关闭 LAN DHCP，避免与主路由 `192.168.12.1` 抢 DHCP。
+```bash
+git tag v25.12.5-xiaotan.1
+git push origin v25.12.5-xiaotan.1
+```

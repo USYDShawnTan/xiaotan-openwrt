@@ -6,13 +6,13 @@ on:
     branches:
       - main
     tags:
-      - "v*"
+      - 'v*'
     paths:
-      - "config/**"
-      - "files/**"
-      - "scripts/**"
-      - "versions.env"
-      - ".github/workflows/build-openwrt.yml"
+      - 'config/**'
+      - 'files/**'
+      - 'scripts/**'
+      - 'versions.env'
+      - '.github/workflows/build-openwrt.yml'
 
 permissions:
   contents: write
@@ -25,6 +25,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    env:
+      CCACHE_MAXSIZE: 1G
 
     steps:
       - name: Checkout this repository
@@ -53,6 +55,11 @@ jobs:
           echo "OPENWRT_REF=$OPENWRT_REF" >> "$GITHUB_ENV"
           echo "ARGON_REF=$ARGON_REF" >> "$GITHUB_ENV"
 
+      # Important: prepare/clone first. Restoring work/openwrt/* before cloning would
+      # create a non-empty destination and cause "git clone" to fail.
+      - name: Prepare OpenWrt
+        run: bash ./scripts/prepare.sh "$GITHUB_WORKSPACE/work"
+
       - name: Cache OpenWrt downloads
         uses: actions/cache@v4
         with:
@@ -62,8 +69,15 @@ jobs:
             openwrt-dl-${{ env.OPENWRT_REF }}-
             openwrt-dl-
 
-      - name: Prepare OpenWrt
-        run: bash ./scripts/prepare.sh "$GITHUB_WORKSPACE/work"
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: work/openwrt/.ccache
+          key: openwrt-ccache-${{ env.OPENWRT_REF }}-${{ hashFiles('config/xiaotan.config', 'versions.env') }}-${{ github.run_number }}
+          restore-keys: |
+            openwrt-ccache-${{ env.OPENWRT_REF }}-${{ hashFiles('config/xiaotan.config', 'versions.env') }}-
+            openwrt-ccache-${{ env.OPENWRT_REF }}-
+            openwrt-ccache-
 
       - name: Download source archives
         working-directory: work/openwrt
@@ -74,25 +88,34 @@ jobs:
         run: |
           make -j"$(nproc)" || make -j1 V=s
 
-      - name: Collect firmware
+      - name: Show ccache statistics
+        if: always()
+        shell: bash
+        run: |
+          if [[ -x work/openwrt/staging_dir/host/bin/ccache ]]; then
+            work/openwrt/staging_dir/host/bin/ccache -s || true
+          elif command -v ccache >/dev/null 2>&1; then
+            ccache -s || true
+          fi
+
+      - name: Verify firmware
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist
-          cp work/openwrt/bin/targets/x86/64/*combined-efi.img.gz dist/
-          cp work/openwrt/bin/targets/x86/64/sha256sums dist/
-          cp config/xiaotan.config dist/
-          cp versions.env dist/
-          (cd dist && sha256sum *combined-efi.img.gz > xiaotan-firmware.sha256)
-          ls -lh dist
+          FIRMWARE="work/openwrt/bin/targets/x86/64/openwrt-x86-64-generic-squashfs-combined-efi.img.gz"
+          test -s "$FIRMWARE"
+          ls -lh "$FIRMWARE"
 
-      - name: Upload build artifact
+      # upload-artifact downloads as a ZIP. Since path points to one file only,
+      # the ZIP contains only openwrt-x86-64-generic-squashfs-combined-efi.img.gz.
+      - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaotan-openwrt-${{ env.OPENWRT_REF }}-${{ github.run_number }}
-          path: dist/
-          retention-days: 30
+          path: work/openwrt/bin/targets/x86/64/openwrt-x86-64-generic-squashfs-combined-efi.img.gz
+          retention-days: 7
           if-no-files-found: error
+          compression-level: 0
 
       - name: Publish GitHub Release for tags
         if: startsWith(github.ref, 'refs/tags/')
@@ -102,10 +125,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+          FIRMWARE="work/openwrt/bin/targets/x86/64/openwrt-x86-64-generic-squashfs-combined-efi.img.gz"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
+            gh release upload "$TAG" "$FIRMWARE" --clobber
           else
-            gh release create "$TAG" dist/* \
+            gh release create "$TAG" "$FIRMWARE" \
               --title "$TAG" \
               --generate-notes
           fi
